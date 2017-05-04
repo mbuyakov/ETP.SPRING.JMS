@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:jms="http://www.springframework.org/schema/jms" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:util="http://www.springframework.org/schema/util"
+	xsi:schemaLocation="http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/jms http://www.springframework.org/schema/jms/spring-jms.xsd
+       http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd">
+
+	<context:property-placeholder location="classpath:settings.properties" />
+
+	<!-- One queue client declaration -->
+	<bean id="mqClientConnectionFactory" class="com.ibm.mq.jms.MQQueueConnectionFactory"
+		p:connectionNameList="${wmq.qmgr.connectionNameList}"
+		p:clientReconnectTimeout="100" p:CCSID="${wmq.qmgr.ccid}" p:channel="${wmq.qmgr.channel}">
+		<property name="transportType">
+			<util:constant static-field="com.ibm.msg.client.wmq.WMQConstants.WMQ_CM_CLIENT" />
+		</property>
+		<property name="clientReconnectOptions">
+			<util:constant
+				static-field="com.ibm.msg.client.wmq.WMQConstants.WMQ_CLIENT_RECONNECT" />
+		</property>
+	</bean>
+
+	<!-- JMS Queue Connection Factory -->
+	<bean id="jmsClientQueueConnectionFactory"
+		class="org.springframework.jms.connection.UserCredentialsConnectionFactoryAdapter">
+		<property name="targetConnectionFactory" ref="mqClientConnectionFactory" />
+	</bean>
+
+	<!-- Use this only if you want send messages. If you only get messages remove this and  jmsDestinationResolver-->
+	<bean id="mqClient" class="org.springframework.jms.core.JmsTemplate"
+		p:connectionFactory-ref="jmsClientQueueConnectionFactory"
+		p:destinationResolver-ref="jmsDestinationResolver" p:receiveTimeout="10000"
+		p:sessionTransacted="true">
+	</bean>
+	
+
+	<bean id="jmsDestinationResolver"
+		class="org.springframework.jms.support.destination.DynamicDestinationResolver" />
+		
+	<!-- end declaration -->
+
+	<!-- broker listeners -->
+	<bean id="queueListener" class="ru.mos.etp.listener.QueueListener" />
+
+	<jms:listener-container container-type="default"
+		connection-factory="jmsClientQueueConnectionFactory" concurrency="4"
+		acknowledge="transacted">
+		<jms:listener destination="${wmq.qmgr.queue}" ref="queueListener" />
+	</jms:listener-container>
+</beans>
